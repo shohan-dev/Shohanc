@@ -5,6 +5,7 @@ import pickle
 import zlib
 import logging
 import time
+import platform
 from collections import deque
 from typing import Optional, List
 from cryptography.fernet import Fernet
@@ -18,7 +19,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 # Try to load shared C lib
 try:
     from ctypes import cdll, c_char_p, c_int, create_string_buffer
-    LIB = cdll.LoadLibrary("./raw/ultraqueue.dll")  # or .dll on Windows
+    if platform.system() == "Windows":
+        LIB = cdll.LoadLibrary("./raw/ultraqueue.dll")
+    elif platform.system() == "Linux":
+        LIB = cdll.LoadLibrary("./raw/ultraqueue.so")
+    else:
+        LIB = None
     HAS_C_LIB = True
 except Exception:
     LIB = None
@@ -31,7 +37,7 @@ class UltraQueueError(Exception):
 class UltraQueue:
     def __init__(
         self,
-        save_path: Optional[str] = None,
+        file_path: Optional[str] = None,
         max_mem_items: int = 100_000,
         encryption_key: Optional[bytes | str] = None,  # Accept bytes or str now
         auto_persist_interval: int = 10,
@@ -39,7 +45,7 @@ class UltraQueue:
         logging_enabled: bool = False,
     ):
         self.use_ultraqueue = use_ultraqueue and HAS_C_LIB
-        self.save_path = save_path
+        self.file_path = file_path
         self.max_mem_items = max_mem_items
         self.encryption_key = encryption_key
         self.auto_persist_interval = auto_persist_interval
@@ -67,18 +73,18 @@ class UltraQueue:
             self._fernet = None
 
         if self.use_ultraqueue:
-            if self.save_path:
+            if self.file_path:
                 LIB.initialize_queue_lock()
         else:
             self.queue = deque()
 
-        if self.save_path and not self.use_ultraqueue and os.path.exists(self.save_path):
+        if self.file_path and not self.use_ultraqueue and os.path.exists(self.file_path):
             try:
                 self._load_from_disk()
             except Exception as e:
                 self._log("error", f"Failed to load persisted queue: {e}")
 
-        if self.save_path and not self.use_ultraqueue:
+        if self.file_path and not self.use_ultraqueue:
             self._persistence_thread = threading.Thread(target=self._auto_persist_worker, daemon=True)
             self._persistence_thread.start()
 
@@ -96,7 +102,7 @@ class UltraQueue:
         if not isinstance(item, str):
             raise ValueError("Only strings are supported")
         if self.use_ultraqueue:
-            res = LIB.ultraqueue_push(c_char_p(self.save_path.encode()), c_char_p(item.encode()))
+            res = LIB.ultraqueue_push(c_char_p(self.file_path.encode()), c_char_p(item.encode()))
             if res != 0:
                 raise UltraQueueError("Failed to push item to C queue")
         else:
@@ -106,7 +112,7 @@ class UltraQueue:
     def pop(self) -> Optional[str]:
         if self.use_ultraqueue:
             buf = create_string_buffer(4096)
-            res = LIB.ultraqueue_pop(c_char_p(self.save_path.encode()), buf, c_int(4096))
+            res = LIB.ultraqueue_pop(c_char_p(self.file_path.encode()), buf, c_int(4096))
             return buf.value.decode() if res == 0 else None
         else:
             with self._lock:
@@ -121,7 +127,7 @@ class UltraQueue:
 
     def length(self) -> int:
         if self.use_ultraqueue:
-            return LIB.ultraqueue_len(c_char_p(self.save_path.encode()))
+            return LIB.ultraqueue_len(c_char_p(self.file_path.encode()))
         with self._lock:
             return len(self.queue)
 
@@ -130,9 +136,9 @@ class UltraQueue:
             self._log("info", "C backend handles persistence automatically.")
             return
 
-        final_path = path or self.save_path
+        final_path = path or self.file_path
         if final_path is None:
-            self._log("warning", "Save skipped: no save_path provided.")
+            self._log("warning", "Save skipped: no file_path provided.")
             return
 
         self._save_to_path(final_path, Fernet(encryption_key) if encryption_key else self._fernet)
@@ -152,7 +158,7 @@ class UltraQueue:
     def _load_from_disk(self):
         with self._lock:
             try:
-                with open(self.save_path, 'rb') as f:
+                with open(self.file_path, 'rb') as f:
                     data = f.read()
                     if self._fernet:
                         try:
@@ -187,14 +193,14 @@ class UltraQueue:
             self._persist_to_disk()
 
     def _persist_to_disk(self):
-        if self.save_path:
-            self._save_to_path(self.save_path, self._fernet)
+        if self.file_path:
+            self._save_to_path(self.file_path, self._fernet)
 
     def stop(self):
         self._stop_event.set()
         if hasattr(self, "_persistence_thread"):
             self._persistence_thread.join(timeout=5)
-        if not self.use_ultraqueue and self.save_path:
+        if not self.use_ultraqueue and self.file_path:
             self._persist_to_disk()
         self._log("info", "UltraQueue stopped and persisted if needed.")
 
@@ -203,7 +209,7 @@ class UltraQueue:
             self.stop()
             if self.use_ultraqueue and hasattr(LIB, "cleanup_queue_lock"):
                 LIB.cleanup_queue_lock()
-            elif not self.use_ultraqueue and self.save_path:
+            elif not self.use_ultraqueue and self.file_path:
                 self._persist_to_disk()
             self._log("info", "UltraQueue instance deleted and resources cleaned up.")
         except Exception as e:
