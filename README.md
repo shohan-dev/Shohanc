@@ -21,7 +21,7 @@ from shohanc.collections import UltraQueue
 
 #### 🧪 Example:
 ```python
-queue = UltraQueue(save_path="queue.dat", encryption_key="secret", use_ultraqueue=True)
+queue = UltraQueue(file_path="queue.dat", encryption_key="secret", use_ultraqueue=True)
 queue.push("data")
 print(queue.pop())
 ```

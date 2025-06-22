@@ -69,7 +69,7 @@ from shohanc.collections import UltraQueue
 
 # Create queue with persistence and encryption
 queue = UltraQueue(
-    save_path="my_queue.dat",
+    file_path="my_queue.dat",
     encryption_key="my_secret_password",
     max_mem_items=50000,
     auto_persist_interval=5,
@@ -86,7 +86,7 @@ batch = queue.pop_batch(100)
 print(f"Retrieved {len(batch)} items")
 
 # Context manager support
-with UltraQueue(save_path="temp_queue.dat") as q:
+with UltraQueue(file_path="temp_queue.dat") as q:
     q.push("auto-saved on exit")
     # Queue automatically saves and cleans up
 ```
@@ -97,7 +97,7 @@ with UltraQueue(save_path="temp_queue.dat") as q:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `save_path` | `str` | `None` | File path for persistent storage |
+| `file_path` | `str` | `None` | File path for persistent storage |
 | `max_mem_items` | `int` | `100000` | Maximum items in memory before overflow |
 | `encryption_key` | `str/bytes` | `None` | Password or Fernet key for encryption |
 | `auto_persist_interval` | `int` | `10` | Auto-save interval in seconds |
@@ -159,7 +159,7 @@ UltraQueue supports both password-based and key-based encryption:
 ```python
 # Password-based encryption (recommended)
 queue = UltraQueue(
-    save_path="encrypted_queue.dat",
+    file_path="encrypted_queue.dat",
     encryption_key="my_strong_password"
 )
 
@@ -167,7 +167,7 @@ queue = UltraQueue(
 from cryptography.fernet import Fernet
 key = Fernet.generate_key()
 queue = UltraQueue(
-    save_path="secure_queue.dat",
+    file_path="secure_queue.dat",
     encryption_key=key
 )
 ```
@@ -181,7 +181,7 @@ Configure memory limits and behavior:
 ```python
 queue = UltraQueue(
     max_mem_items=10000,  # Keep only 10K items in memory
-    save_path="overflow.dat"  # Overflow to disk
+    file_path="overflow.dat"  # Overflow to disk
 )
 ```
 
@@ -210,7 +210,7 @@ UltraQueue uses an intelligent **hybrid storage approach**:
 # Configure the hybrid behavior
 queue = UltraQueue(
     max_mem_items=50000,     # Keep 50K items in RAM
-    save_path="queue.dat",   # Overflow and persistence file
+    file_path="queue.dat",   # Overflow and persistence file
     auto_persist_interval=5  # Save every 5 seconds
 )
 
@@ -352,7 +352,7 @@ If you're running out of memory:
 # Reduce memory footprint
 queue = UltraQueue(
     max_mem_items=10000,      # Lower memory limit
-    save_path="overflow.dat", # Enable disk overflow
+    file_path="overflow.dat", # Enable disk overflow
     auto_persist_interval=2   # Save more frequently
 )
 ```
@@ -362,7 +362,7 @@ queue = UltraQueue(
 # For maximum performance
 queue = UltraQueue(
     use_ultraqueue=True,      # Enable C backend
-    save_path=None,          # Disable persistence if not needed
+    file_path=None,          # Disable persistence if not needed
     logging_enabled=False,   # Disable logging overhead
     max_mem_items=1000000    # Higher memory limit
 )
