@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="shohanc",
-    version="0.1.1",
+    version="0.1.2",
     author="Shohan",
     author_email="shohan.dev.cse@gmail.com",
     description="⚡ Ultra-fast Python queue system with native C backend support, persistence, and encryption.",
